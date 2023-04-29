@@ -3,6 +3,7 @@ import torch.nn as nn
 from torch.nn import functional as F
 from utils import helpers as utl
 from torchkit.constant import *
+import torchkit.pytorch_utils as ptu
 import pdb
 
 class Critic_RNN(nn.Module):
@@ -181,7 +182,7 @@ class Critic_RNN(nn.Module):
       
         
         if self.ncde:
-            timess=torch.linspace(0, prev_actions.size(0)-1, prev_actions.size(0))
+            timess=torch.linspace(0, prev_actions.size(0)-1, prev_actions.size(0)).to(ptu.device)
             timess=timess.unsqueeze(1)
             timess=timess.repeat(1,prev_actions.size(1))
             timess=timess.unsqueeze(2)

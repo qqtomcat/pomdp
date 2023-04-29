@@ -90,7 +90,7 @@ class TD3(RLAlgorithmBase):
                     observs=next_observs if markov_critic else observs,
                 )
                 
-            #new_actions = self._inject_noise(new_actions)
+            new_actions = self._inject_noise(new_actions)
             #pdb.set_trace()
             
             if markov_critic:  # (B, 1)

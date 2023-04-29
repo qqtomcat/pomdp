@@ -155,7 +155,7 @@ class Actor_RNN(nn.Module):
         
         
         if self.ncde:
-            timess=torch.linspace(0, prev_actions.size(0)-1, prev_actions.size(0))
+            timess=torch.linspace(0, prev_actions.size(0)-1, prev_actions.size(0)).to(ptu.device)
             timess=timess.unsqueeze(1)
             timess=timess.repeat(1,prev_actions.size(1))
             timess=timess.unsqueeze(2)
@@ -292,7 +292,7 @@ class Actor_RNN(nn.Module):
         else:
             hidden_state , current_internal_state = self.rnn(ncde_row, prev_internal_state)
         
-        print(torch.norm(current_internal_state))
+        #print(torch.norm(current_internal_state))
         #if init:
         #    print(current_internal_state)
         #    print(ncde_row)
