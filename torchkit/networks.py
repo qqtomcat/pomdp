@@ -183,12 +183,15 @@ class CDEFunc(torch.nn.Module):
     def forward(self, t, z):
         # z has shape (batch, hidden_channels)
         z = self.linear0(z)
+        
         z = z.relu()
         z = self.linear1(z)
         z = z.relu()
         z = self.linear2(z)
+        
         z = self.activation(z)
         z = z.view(z.size(0), self.hidden_channels, self.input_channels)
+       
         return z
 
     
@@ -218,7 +221,7 @@ class NeuralCDE(torch.nn.Module):
         z_T = torchcde.cdeint(X=X,
                               z0=z0,
                               func=self.func,
-                              t=X.grid_points,adjoint=False, backend= "torchdiffeq", atol = 0.001, rtol =0.001, method = "midpoint")
+                              t=X.grid_points,adjoint=False, backend= "torchdiffeq", atol = 0.001, rtol =0.001, method = "rk4")
 
         #pdb.set_trace()
         pred_y = self.readout(z_T)
