@@ -166,9 +166,10 @@ class Actor_RNN(nn.Module):
          
             ncde_row=torch.cat((timess,input_a, input_s,input_r),2)
             
-            ncde_row=ncde_row.permute(1,0,2)           
+            ncde_row=ncde_row.permute(1,0,2)  
+            #pdb.set_trace()
             hidden_states, current_internal_state= self.rnn(ncde_row)
-            
+            #pdb.set_trace()
             hidden_states=hidden_states.permute(1,0,2)
            
             hidden_states= self.activation_ncde(hidden_states)
@@ -286,7 +287,7 @@ class Actor_RNN(nn.Module):
         
         if init:
             current_internal_state= self.rnn.initial(ncde_row)
-            current_internal_state = self.radii* current_internal_state * (torch.norm(current_internal_state) ** (-1))       
+           # current_internal_state = self.radii* current_internal_state * (torch.norm(current_internal_state) ** (-1))       
             hidden_state= self.rnn.readout(current_internal_state)
         else:
             hidden_state , current_internal_state = self.rnn(ncde_row, prev_internal_state)
