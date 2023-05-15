@@ -168,7 +168,7 @@ class Actor_RNN(nn.Module):
             
             ncde_row=ncde_row.permute(1,0,2)           
             hidden_states, current_internal_state= self.rnn(ncde_row)
-            
+            pdb.set_trace()
             hidden_states=hidden_states.permute(1,0,2)
            
             hidden_states= self.activation_ncde(hidden_states)
