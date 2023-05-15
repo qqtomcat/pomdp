@@ -221,7 +221,7 @@ class NeuralCDE(torch.nn.Module):
         z_T = torchcde.cdeint(X=X,
                               z0=z0,
                               func=self.func,
-                              t=X.grid_points,adjoint=False, backend= "torchdiffeq", atol = 0.001, rtol =0.001, method = "rk4")
+                              t=X.grid_points,adjoint=False, backend= "torchdiffeq", method = "rk4")
 
         #pdb.set_trace()
         pred_y = self.readout(z_T)
