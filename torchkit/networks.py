@@ -183,8 +183,8 @@ class CDEFunc(torch.nn.Module):
     def forward(self, t, z):
         # z has shape (batch, hidden_channels)
         #pdb.set_trace()
-        z0_norms= torch.norm(z,dim=1)**(-1)
-        z =  z0_norms.unsqueeze(1).expand(z.size(0), z.size(1)) * z
+        #z0_norms= torch.norm(z,dim=1)**(-1)
+        #z =  z0_norms.unsqueeze(1).expand(z.size(0), z.size(1)) * z
         #z = z/torch.norm(z, dim=1)
         #pdb.set_trace()
         z = self.linear0(z)
@@ -217,8 +217,8 @@ class NeuralCDE(torch.nn.Module):
         if init_hid==None:
             X0= X.evaluate(X.interval[0])	
             z0 = self.initial(X0)
-            #z0_norms= torch.norm(z0,dim=1)**(-1)
-            #z0 = self.radii* z0_norms.unsqueeze(1).expand(z0.size(0), z0.size(1)) * z0
+            z0_norms= torch.norm(z0,dim=1)**(-1)
+            z0 = self.radii* z0_norms.unsqueeze(1).expand(z0.size(0), z0.size(1)) * z0
             #print(torch.norm(z0,dim=0))
         else:	   
             z0 = init_hid
