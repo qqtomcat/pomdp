@@ -21,8 +21,8 @@ class Actor_RNN(nn.Module):
         rnn_num_layers,
         activation,
         radii,
+        embed,
         image_encoder=None,
-        embed=True,
         **kwargs
     ):
         super().__init__()
@@ -30,7 +30,7 @@ class Actor_RNN(nn.Module):
         self.obs_dim = obs_dim
         self.action_dim = action_dim
         self.algo = algo
-        self.embed = embed
+       
         ### Build Model
         ## 1. embed action, state, reward (Feed-forward layers first)
         self.activation_ncde = activation
@@ -38,16 +38,16 @@ class Actor_RNN(nn.Module):
         self.image_encoder = image_encoder
         if self.image_encoder is None:
             self.observ_embedder = utl.FeatureExtractor(
-                obs_dim, observ_embedding_size, F.relu
+                obs_dim, observ_embedding_size, activation
             )
         else:  # for pixel observation, use external encoder
             assert observ_embedding_size == 0
             observ_embedding_size = self.image_encoder.embed_size  # reset it
 
         self.action_embedder = utl.FeatureExtractor(
-            action_dim, action_embedding_size, F.relu
+            action_dim, action_embedding_size, activation
         )
-        self.reward_embedder = utl.FeatureExtractor(1, reward_embedding_size, F.relu)
+        self.reward_embedder = utl.FeatureExtractor(1, reward_embedding_size, activation)
 
         ## 2. build RNN model
         rnn_input_size = (
@@ -66,7 +66,7 @@ class Actor_RNN(nn.Module):
             
         if self.ncde:
             self.rnn=RNNs[encoder](
-                input_channels=rnn_input_size+1,
+                input_channels=rnn_input_size+2,
                 hidden_channels=self.rnn_hidden_size,
                 output_channels=self.rnn_hidden_size,
                 width = self.rnn_hidden_size,
@@ -74,7 +74,7 @@ class Actor_RNN(nn.Module):
                 )
         else:
             self.rnn = RNNs[encoder](
-                input_size=rnn_input_size,
+                input_size=rnn_input_size+1,
                 hidden_size=self.rnn_hidden_size,
                 num_layers=self.num_layers,
                 batch_first=False,
@@ -119,15 +119,25 @@ class Actor_RNN(nn.Module):
         else:  # pixel obs
             return self.image_encoder(observs)
 
-    def get_hidden_states(
-        self, prev_actions, rewards, observs, initial_internal_state=None
-    ):
-        # all the input have the shape of (1 or T+1, B, *)
-        # get embedding of initial transition
+    def get_embeddings(self, prev_actions,rewards,observs):
         input_a = self.action_embedder(prev_actions)
         input_r = self.reward_embedder(rewards)
         input_s = self._get_obs_embedding(observs)
-        inputs = torch.cat((input_a, input_r, input_s), dim=-1)
+        
+        return input_a,input_r,input_s
+
+    def get_hidden_states(
+        self, prev_actions, rewards, observs, drop_vec=None, initial_internal_state=None
+    ):
+        # all the input have the shape of (1 or T+1, B, *)
+        # get embedding of initial transition
+        #pdb.set_trace()
+        input_a,input_r,input_s=self.get_embeddings(prev_actions,rewards, observs)
+        
+        if drop_vec==None:
+            drop_vec=utl.drop_tensor_compute_lstm(input_s)
+            
+        inputs = torch.cat((input_a, input_r, input_s,drop_vec), dim=-1)
         #pdb.set_trace()
         # feed into RNN: output (T+1, B, hidden_size)
         if initial_internal_state is None:  # initial_internal_state is zeros
@@ -152,29 +162,25 @@ class Actor_RNN(nn.Module):
         
         ### 1. get hidden/belief states of the whole/sub trajectories, aligned with states
         # return the hidden states (T+1, B, dim)
-        
-        
+               
         if self.ncde:
-            timess=torch.linspace(0, prev_actions.size(0)-1, prev_actions.size(0)).to(ptu.device)
-            timess=timess.unsqueeze(1)
-            timess=timess.repeat(1,prev_actions.size(1))
-            timess=timess.unsqueeze(2)
+          
+            timess= utl.timess_ini(prev_actions.size(0),prev_actions.size(1))
             
-            input_a = self.action_embedder(prev_actions)
-            input_r = self.reward_embedder(rewards)
-            input_s = self._get_obs_embedding(observs)
-         
-            ncde_row=torch.cat((timess,input_a, input_s,input_r),2)
-            
-            ncde_row=ncde_row.permute(1,0,2)           
+            input_a,input_r,input_s=self.get_embeddings(prev_actions,rewards, observs)
+            drop_tensor= utl.drop_tensor_compute(input_s)
+   
+            ncde_row=torch.cat((timess,drop_tensor,input_a, input_s,input_r),2).permute(1,0,2)
+            #pdb.set_trace()          
             hidden_states, current_internal_state= self.rnn(ncde_row)
-            pdb.set_trace()
+                      
             hidden_states=hidden_states.permute(1,0,2)
            
             hidden_states= self.activation_ncde(hidden_states)
         else:
+       
             hidden_states = self.get_hidden_states(
-                prev_actions=prev_actions, rewards=rewards, observs=observs
+                prev_actions=prev_actions, rewards=rewards, observs=observs, 
             )
         
         
@@ -215,6 +221,7 @@ class Actor_RNN(nn.Module):
         prev_action,
         reward,
         obs,
+        drop,
         deterministic=False,
         return_log_prob=False,
     ):
@@ -226,11 +233,13 @@ class Actor_RNN(nn.Module):
         # for LSTM, current_internal_state also includes cell state, i.e.
         # hidden state: (1, B, dim)
         # current_internal_state: (layers, B, dim) or ((layers, B, dim), (layers, B, dim))
+        drop_vec=torch.ones(prev_action.size(0),prev_action.size(1),1)*int(drop)
         
         hidden_state, current_internal_state = self.get_hidden_states(
-            prev_actions=prev_action,
-            rewards=reward,
-            observs=obs,
+            prev_action,
+            reward,
+            obs,
+            drop_vec,
             initial_internal_state=prev_internal_state,
         )
         #pdb.set_trace()

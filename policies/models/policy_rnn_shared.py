@@ -35,7 +35,6 @@ class ModelFreeOffPolicy_Shared_RNN(nn.Module):
         lr=3e-4,
         gamma=0.99,
         tau=5e-3,
-        embed=False,
         **kwargs
     ):
         super().__init__()

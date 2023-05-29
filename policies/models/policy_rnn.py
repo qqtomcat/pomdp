@@ -46,7 +46,7 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
         gamma=0.99,
         tau=5e-3,
         radii=40,
-        embed= True,
+        embed = True,
         # pixel obs
         image_encoder_fn=lambda: None,
         activation = "tanh",
@@ -58,7 +58,7 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
         self.action_dim = action_dim
         self.gamma = gamma
         self.tau = tau
-	
+        self.embed = embed
         self.algo = RL_ALGORITHMS[algo_name](action_dim=action_dim)
 
         if encoder == 'ncde':
@@ -70,6 +70,8 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
             self.activation= F.tanh
         elif activation == "relu":
             self.activation = F.relu
+        elif activation == "sigmoid":
+            self.activation = F.sigmoid
             
         # Critics
         self.critic = Critic_RNN(
@@ -85,6 +87,7 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
             rnn_num_layers,
             self.activation,
             radii,
+            self.embed,
             image_encoder=image_encoder_fn(),  # separate weight
         )
         self.critic_optimizer = Adam(self.critic.parameters(), lr)
@@ -105,6 +108,7 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
             rnn_num_layers,
             self.activation,
             radii,
+            self.embed,
             image_encoder=image_encoder_fn(),  # separate weight
         )
         self.actor_optimizer = Adam(self.actor.parameters(), lr)
@@ -122,6 +126,7 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
         prev_action,
         reward,
         obs,
+        drop,
         deterministic=False,
         return_log_prob=False,
     ):
@@ -134,6 +139,7 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
             prev_action=prev_action,
             reward=reward,
             obs=obs,
+            drop=drop,
             deterministic=deterministic,
             return_log_prob=return_log_prob,
         )

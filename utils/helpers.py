@@ -9,7 +9,7 @@ import torch.nn as nn
 import torchkit.pytorch_utils as ptu
 from gym.spaces import Box, Discrete, Tuple
 from itertools import product
-
+import pdb
 
 def get_grad_norm(model):
     grad_norm = []
@@ -213,6 +213,7 @@ class FeatureExtractor(nn.Module):
     def __init__(self, input_size, output_size, activation_function):
         super(FeatureExtractor, self).__init__()
         self.output_size = output_size
+        self.input_size = input_size
         self.activation_function = activation_function
         if self.output_size != 0:
             self.fc = nn.Linear(input_size, output_size)
@@ -221,7 +222,11 @@ class FeatureExtractor(nn.Module):
 
     def forward(self, inputs):
         if self.output_size != 0:
-            return self.activation_function(self.fc(inputs))
+            if self.output_size==2:
+                #pdb.set_trace()
+                return torch.cat((self.activation_function(inputs),self.activation_function(-inputs)), (inputs.dim()-1))
+            else:
+                return self.activation_function(self.fc(inputs))
         else:
             return ptu.zeros(
                 0,
@@ -239,6 +244,49 @@ def sample_gaussian(mu, logvar, num=None):
         mu = mu.repeat(num, 1)
         return eps.mul(std).add_(mu)
 
+def analysis(curr):
+    ndif1=curr[:,:-1,:]
+    ndif2=curr[:,1:,:]
+    corr=torch.einsum('ijk,ijk->ij', [ndif1,ndif2])
+    corrmean=torch.mean(torch.mean(corr,dim=1),dim=0)
+    corrvar=torch.min(torch.mean(corr,dim=1))
+    print(corrmean)
+    print(corrvar)
+    return corrmean, corrvar
+
+def drop_ini(input_s):
+    indif1=input_s[:-1,:,:]
+    indif2=input_s[1:,:,:]
+    diff=indif1-indif2
+    ndiff= diff.square()
+    nkdiff=ndiff[:,:,0]+ndiff[:,:,1]
+    nndiff=nkdiff.sign()
+    return nndiff
+
+def drop_tensor_compute_lstm(input_s):
+
+    nndiff=drop_ini(input_s)
+    onne=torch.ones(nndiff.size(1))
+    onne=onne.unsqueeze(0)
+    nndiff=torch.cat((onne,nndiff),dim=0)
+    nndiff= nndiff.unsqueeze(2)
+    return nndiff
+
+def drop_tensor_compute(input_s):
+    nndiff=drop_ini(input_s)
+    nnndiff=torch.cumsum(nndiff,dim=0)
+    zer=torch.zeros(nnndiff.size(1))
+    zer=zer.unsqueeze(0)    
+    nnndiff=torch.cat((zer,nnndiff),dim=0)
+    nnndiff= nnndiff.unsqueeze(2)
+    return nnndiff
+
+def timess_ini(dim1,dim2):
+    timess=torch.linspace(0, dim1-1,dim1).to(ptu.device)
+    timess=timess.unsqueeze(1)
+    timess=timess.repeat(1,dim2)
+    timess=timess.unsqueeze(2)
+    return timess
 
 def save_obj(obj, folder, name):
     filename = os.path.join(folder, name + ".pkl")
