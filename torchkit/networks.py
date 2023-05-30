@@ -224,7 +224,6 @@ class NeuralCDE(torch.nn.Module):
                               t=X.grid_points,adjoint=False, 
                               backend= "torchdiffeq", 
                               method = "midpoint",
-                              radii = self.radii,
                               )
 
         #pdb.set_trace()

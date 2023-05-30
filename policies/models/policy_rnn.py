@@ -45,11 +45,11 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
         lr=3e-4,
         gamma=0.99,
         tau=5e-3,
-        radii=40,
-        embed = True,
+        radii=60,
         # pixel obs
         image_encoder_fn=lambda: None,
         activation = "tanh",
+        reward_vision= True,
         **kwargs
     ):
         super().__init__()
@@ -58,8 +58,9 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
         self.action_dim = action_dim
         self.gamma = gamma
         self.tau = tau
-        self.embed = embed
+        
         self.algo = RL_ALGORITHMS[algo_name](action_dim=action_dim)
+        self.reward_vision= reward_vision
 
         if encoder == 'ncde':
             self.ncde = True       
@@ -87,7 +88,7 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
             rnn_num_layers,
             self.activation,
             radii,
-            self.embed,
+            reward_vision,
             image_encoder=image_encoder_fn(),  # separate weight
         )
         self.critic_optimizer = Adam(self.critic.parameters(), lr)
@@ -108,7 +109,7 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
             rnn_num_layers,
             self.activation,
             radii,
-            self.embed,
+            reward_vision,
             image_encoder=image_encoder_fn(),  # separate weight
         )
         self.actor_optimizer = Adam(self.actor.parameters(), lr)

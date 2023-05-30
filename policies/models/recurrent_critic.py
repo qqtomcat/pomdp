@@ -21,7 +21,7 @@ class Critic_RNN(nn.Module):
         rnn_num_layers,
         activation,
         radii,
-        embed,
+        reward_vision,
         image_encoder=None,
         **kwargs
     ):
@@ -30,7 +30,7 @@ class Critic_RNN(nn.Module):
         self.obs_dim = obs_dim
         self.action_dim = action_dim
         self.algo = algo
-        
+        self.reward_vision= reward_vision
         ### Build Model
         ## 1. embed action, state, reward (Feed-forward layers first)
 
@@ -54,6 +54,9 @@ class Critic_RNN(nn.Module):
         rnn_input_size = (
             action_embedding_size + observ_embedding_size + reward_embedding_size
         )
+        if not self.reward_vision:
+            rnn_input_size -= 2
+            
         self.rnn_hidden_size = rnn_hidden_size
 
         assert encoder in RNNs
@@ -164,9 +167,11 @@ class Critic_RNN(nn.Module):
         input_a,input_r,input_s=self.get_embeddings(prev_actions,rewards, observs)
         if drop_vec==None:
             drop_vec=utl.drop_tensor_compute_lstm(input_s)
-            
-        inputs = torch.cat((input_a, input_r, input_s,drop_vec), dim=-1)
-
+        
+        if self.reward_vision:    
+            inputs = torch.cat((input_a, input_r, input_s,drop_vec), dim=-1)
+        else:
+            inputs = torch.cat((input_a, input_s,drop_vec), dim=-1)
         # feed into RNN: output (T+1, B, hidden_size)
         output, _ = self.rnn(inputs)  # initial hidden state is zeros
         return output
@@ -196,8 +201,12 @@ class Critic_RNN(nn.Module):
             input_a,input_r,input_s=self.get_embeddings(prev_actions,rewards, observs)
             
             drop_tensor= utl.drop_tensor_compute(input_s)
-   
-            ncde_row=torch.cat((timess,drop_tensor,input_a, input_s,input_r),2).permute(1,0,2)           
+            
+            if self.reward_vision:
+                ncde_row=torch.cat((timess,drop_tensor,input_a, input_s,input_r),2).permute(1,0,2)
+            else:
+                ncde_row=torch.cat((timess,drop_tensor,input_a, input_s),2).permute(1,0,2)
+                
             hidden_states, current_internal_state= self.rnn(ncde_row)
             hidden_states=hidden_states.permute(1,0,2)
             hidden_states= self.activation_ncde(hidden_states)

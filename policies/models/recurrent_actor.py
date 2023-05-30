@@ -21,7 +21,7 @@ class Actor_RNN(nn.Module):
         rnn_num_layers,
         activation,
         radii,
-        embed,
+        reward_vision,
         image_encoder=None,
         **kwargs
     ):
@@ -30,7 +30,7 @@ class Actor_RNN(nn.Module):
         self.obs_dim = obs_dim
         self.action_dim = action_dim
         self.algo = algo
-       
+        self.reward_vision = reward_vision
         ### Build Model
         ## 1. embed action, state, reward (Feed-forward layers first)
         self.activation_ncde = activation
@@ -53,6 +53,8 @@ class Actor_RNN(nn.Module):
         rnn_input_size = (
             action_embedding_size + observ_embedding_size + reward_embedding_size
         )
+        if  not self.reward_vision:
+            rnn_input_size -= 2
         self.rnn_hidden_size = rnn_hidden_size
 
         assert encoder in RNNs
@@ -63,7 +65,7 @@ class Actor_RNN(nn.Module):
             self.ncde=True
         else:
             self.ncde=False
-            
+          
         if self.ncde:
             self.rnn=RNNs[encoder](
                 input_channels=rnn_input_size+2,
@@ -137,7 +139,10 @@ class Actor_RNN(nn.Module):
         if drop_vec==None:
             drop_vec=utl.drop_tensor_compute_lstm(input_s)
             
-        inputs = torch.cat((input_a, input_r, input_s,drop_vec), dim=-1)
+        if self.reward_vision:    
+            inputs = torch.cat((input_a, input_r, input_s,drop_vec), dim=-1)
+        else:
+            inputs = torch.cat((input_a, input_s,drop_vec), dim=-1)
         #pdb.set_trace()
         # feed into RNN: output (T+1, B, hidden_size)
         if initial_internal_state is None:  # initial_internal_state is zeros
@@ -169,8 +174,10 @@ class Actor_RNN(nn.Module):
             
             input_a,input_r,input_s=self.get_embeddings(prev_actions,rewards, observs)
             drop_tensor= utl.drop_tensor_compute(input_s)
-   
-            ncde_row=torch.cat((timess,drop_tensor,input_a, input_s,input_r),2).permute(1,0,2)
+            if self.reward_vision:
+                ncde_row=torch.cat((timess,drop_tensor,input_a, input_s,input_r),2).permute(1,0,2)
+            else:
+                ncde_row=torch.cat((timess,drop_tensor,input_a, input_s),2).permute(1,0,2)
             #pdb.set_trace()          
             hidden_states, current_internal_state= self.rnn(ncde_row)
                       
@@ -296,6 +303,7 @@ class Actor_RNN(nn.Module):
         if init:
             current_internal_state= self.rnn.initial(ncde_row)
             current_internal_state = self.radii* current_internal_state * (torch.norm(current_internal_state) ** (-1))       
+            
             hidden_state= self.rnn.readout(current_internal_state)
         else:
             hidden_state , current_internal_state = self.rnn(ncde_row, prev_internal_state)
