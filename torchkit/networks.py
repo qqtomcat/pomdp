@@ -173,7 +173,7 @@ class ImageEncoder(nn.Module):
 
 
 class MLP(torch.nn.Module):
-    def __init__(self, in_size, out_size, mlp_size, num_layers, tanh):
+    def __init__(self, in_size, out_size, mlp_size, num_layers):
         super().__init__()
 
         model = [torch.nn.Linear(in_size, mlp_size),
@@ -224,7 +224,7 @@ class NeuralCDE(torch.nn.Module):
 
         self.func = CDEFunc(input_channels, hidden_channels, width=width)
         #self.initial = torch.nn.Linear(input_channels, hidden_channels)
-        self.realini=  MLP(input_channels,hidden_channels,hidden_channels,2,False)
+        self.realini=  MLP(input_channels,hidden_channels,hidden_channels,2)
         self.readout = torch.nn.Linear(hidden_channels, output_channels, bias=False)
         self.radii=radii
 
