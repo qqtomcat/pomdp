@@ -49,7 +49,6 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
         # pixel obs
         image_encoder_fn=lambda: None,
         activation = "tanh",
-        reward_vision= True,
         **kwargs
     ):
         super().__init__()
@@ -60,7 +59,7 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
         self.tau = tau
         
         self.algo = RL_ALGORITHMS[algo_name](action_dim=action_dim)
-        self.reward_vision= reward_vision
+    
 
         if encoder == 'ncde':
             self.ncde = True       
@@ -88,7 +87,6 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
             rnn_num_layers,
             self.activation,
             radii,
-            reward_vision,
             image_encoder=image_encoder_fn(),  # separate weight
         )
         self.critic_optimizer = Adam(self.critic.parameters(), lr)
@@ -109,7 +107,6 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
             rnn_num_layers,
             self.activation,
             radii,
-            reward_vision,
             image_encoder=image_encoder_fn(),  # separate weight
         )
         self.actor_optimizer = Adam(self.actor.parameters(), lr)
@@ -215,12 +212,15 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
         qf1_loss = ((q1_pred - q_target) ** 2).sum() / num_valid  # TD error
         qf2_loss = ((q2_pred - q_target) ** 2).sum() / num_valid  # TD error
         
-        #print(qf1_loss)
-        #print(qf2_loss)
+       
+        #print(qf1_loss+qf2_loss)
         #print(self.critic_optimizer.param_groups[0]["lr"])
         
         self.critic_optimizer.zero_grad()
         (qf1_loss + qf2_loss).backward()
+        
+        
+        
         self.critic_optimizer.step()
         
         ### 2. Actor loss
@@ -241,6 +241,8 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
         #print(policy_loss)
         self.actor_optimizer.zero_grad()
         policy_loss.backward()
+        
+        
         self.actor_optimizer.step()
      
         outputs = {

@@ -169,13 +169,35 @@ class ImageEncoder(nn.Module):
         embed = torch.reshape(embed, list(batch_size) + [-1])  # (T, B, C*H*W)
         embed = self.linear(embed)  # (T, B, embed_size)
         return embed
+    
 
+
+class MLP(torch.nn.Module):
+    def __init__(self, in_size, out_size, mlp_size, num_layers, tanh):
+        super().__init__()
+
+        model = [torch.nn.Linear(in_size, mlp_size),
+                 torch.nn.ReLU()]
+        for _ in range(num_layers - 1):
+            model.append(torch.nn.Linear(mlp_size, mlp_size))
+            ###################
+            # LipSwish activations are useful to constrain the Lipschitz constant of the discriminator.
+            # (For simplicity we additionally use them in the generator, but that's less important.)
+            ###################
+            model.append(torch.nn.ReLU())
+        model.append(torch.nn.Linear(mlp_size, out_size))
+
+        self._model = torch.nn.Sequential(*model)
+
+    def forward(self, x):
+        return self._model(x)
+    
 class CDEFunc(torch.nn.Module):
     def __init__(self, input_channels, hidden_channels, width=128):
         super(CDEFunc, self).__init__()
         self.input_channels = input_channels
         self.hidden_channels = hidden_channels
-        self.activation = F.tanh
+ 
         self.linear0 = torch.nn.Linear(hidden_channels, hidden_channels)
         self.linear1 = torch.nn.Linear(hidden_channels, width)
         self.linear2 = torch.nn.Linear(width, input_channels * hidden_channels)
@@ -189,7 +211,7 @@ class CDEFunc(torch.nn.Module):
         z = z.relu()
         z = self.linear2(z)
         
-        z = self.activation(z)
+        z = z.tanh()
         z = z.view(z.size(0), self.hidden_channels, self.input_channels)
        
         return z
@@ -197,12 +219,13 @@ class CDEFunc(torch.nn.Module):
     
 class NeuralCDE(torch.nn.Module):
     def __init__(self, input_channels, hidden_channels, output_channels, 
-                  width=128, radii=40):
+                  width=128, radii=60):
         super(NeuralCDE, self).__init__()
 
         self.func = CDEFunc(input_channels, hidden_channels, width=width)
-        self.initial = torch.nn.Linear(input_channels, hidden_channels)
-        self.readout = torch.nn.Linear(hidden_channels, output_channels)
+        #self.initial = torch.nn.Linear(input_channels, hidden_channels)
+        self.realini=  MLP(input_channels,hidden_channels,hidden_channels,2,False)
+        self.readout = torch.nn.Linear(hidden_channels, output_channels, bias=False)
         self.radii=radii
 
     def forward(self, coeffs,init_hid=None):
@@ -211,7 +234,7 @@ class NeuralCDE(torch.nn.Module):
         
         if init_hid==None:
             X0= X.evaluate(X.interval[0])	
-            z0 = self.initial(X0)
+            z0 = self.realini(X0)
             z0_norms= torch.norm(z0,dim=1)**(-1)
             z0 = self.radii* z0_norms.unsqueeze(1).expand(z0.size(0), z0.size(1)) * z0
             #print(torch.norm(z0,dim=0))
@@ -221,11 +244,12 @@ class NeuralCDE(torch.nn.Module):
         z_T = torchcde.cdeint(X=X,
                               z0=z0,
                               func=self.func,
-                              t=X.grid_points,adjoint=False, 
+                              t=X.grid_points,
+                              adjoint=False, 
                               backend= "torchdiffeq", 
-                              method = "midpoint",
+                              method = "rk4",
                               )
 
         #pdb.set_trace()
-        pred_y = self.readout(z_T)
+        pred_y = self.readout(z_T/self.radii)
         return pred_y, z_T

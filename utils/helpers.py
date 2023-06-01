@@ -48,7 +48,7 @@ def env_step(env, action):
     if env.action_space.__class__.__name__ == "Discrete":
         action = np.argmax(action)  # one-hot to int
     next_obs, reward, done, info = env.step(action)
-
+    #pdb.set_trace()
     # move to torch
     next_obs = ptu.from_numpy(next_obs).view(-1, next_obs.shape[0])
     reward = ptu.FloatTensor([reward]).view(-1, 1)
@@ -191,7 +191,7 @@ def recompute_embeddings(
             warnings.warn("You are not recomputing the embeddings correctly!")
             import pdb
 
-            pdb.set_trace()
+            #pdb.set_trace()
 
     policy_storage.task_samples = task_sample
     policy_storage.task_mu = task_mean
@@ -258,8 +258,8 @@ def drop_ini(input_s):
     indif1=input_s[:-1,:,:]
     indif2=input_s[1:,:,:]
     diff=indif1-indif2
-    ndiff= diff.square()
-    nkdiff=ndiff[:,:,0]+ndiff[:,:,1]
+    ndiff= diff.abs()
+    nkdiff=torch.sum(ndiff,2)
     nndiff=nkdiff.sign()
     return nndiff
 

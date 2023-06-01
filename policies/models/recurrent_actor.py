@@ -21,7 +21,6 @@ class Actor_RNN(nn.Module):
         rnn_num_layers,
         activation,
         radii,
-        reward_vision,
         image_encoder=None,
         **kwargs
     ):
@@ -30,7 +29,7 @@ class Actor_RNN(nn.Module):
         self.obs_dim = obs_dim
         self.action_dim = action_dim
         self.algo = algo
-        self.reward_vision = reward_vision
+     
         ### Build Model
         ## 1. embed action, state, reward (Feed-forward layers first)
         self.activation_ncde = activation
@@ -51,10 +50,9 @@ class Actor_RNN(nn.Module):
 
         ## 2. build RNN model
         rnn_input_size = (
-            action_embedding_size + observ_embedding_size + reward_embedding_size
+            action_embedding_size + obs_dim*observ_embedding_size 
         )
-        if  not self.reward_vision:
-            rnn_input_size -= 2
+
         self.rnn_hidden_size = rnn_hidden_size
 
         assert encoder in RNNs
@@ -104,7 +102,7 @@ class Actor_RNN(nn.Module):
         ## 4. build policy
         
         self.policy = self.algo.build_actor(
-            input_size=self.rnn_hidden_size + observ_embedding_size,
+            input_size=self.rnn_hidden_size + obs_dim*observ_embedding_size,
             action_dim=self.action_dim,
             hidden_sizes=policy_layers,
         )
@@ -139,10 +137,8 @@ class Actor_RNN(nn.Module):
         if drop_vec==None:
             drop_vec=utl.drop_tensor_compute_lstm(input_s)
             
-        if self.reward_vision:    
-            inputs = torch.cat((input_a, input_r, input_s,drop_vec), dim=-1)
-        else:
-            inputs = torch.cat((input_a, input_s,drop_vec), dim=-1)
+
+        inputs = torch.cat((input_a, input_s,drop_vec), dim=-1)
         #pdb.set_trace()
         # feed into RNN: output (T+1, B, hidden_size)
         if initial_internal_state is None:  # initial_internal_state is zeros
@@ -174,11 +170,9 @@ class Actor_RNN(nn.Module):
             
             input_a,input_r,input_s=self.get_embeddings(prev_actions,rewards, observs)
             drop_tensor= utl.drop_tensor_compute(input_s)
-            if self.reward_vision:
-                ncde_row=torch.cat((timess,drop_tensor,input_a, input_s,input_r),2).permute(1,0,2)
-            else:
-                ncde_row=torch.cat((timess,drop_tensor,input_a, input_s),2).permute(1,0,2)
-            #pdb.set_trace()          
+           
+            ncde_row=torch.cat((timess,drop_tensor,input_a, input_s),2).permute(1,0,2)
+                    
             hidden_states, current_internal_state= self.rnn(ncde_row)
                       
             hidden_states=hidden_states.permute(1,0,2)
@@ -301,7 +295,7 @@ class Actor_RNN(nn.Module):
          
         
         if init:
-            current_internal_state= self.rnn.initial(ncde_row)
+            current_internal_state= self.rnn.realini(ncde_row)
             current_internal_state = self.radii* current_internal_state * (torch.norm(current_internal_state) ** (-1))       
             
             hidden_state= self.rnn.readout(current_internal_state)
@@ -309,13 +303,7 @@ class Actor_RNN(nn.Module):
             hidden_state , current_internal_state = self.rnn(ncde_row, prev_internal_state)
         #pdb.set_trace()
         #print(torch.norm(current_internal_state[0,-1,:]))
-        #if init:
-        #    print(current_internal_state)
-        #    print(ncde_row)
-            #pdb.set_trace()
-        #elif ncde_row[0,0,0]==1:
-        #    print(current_internal_state)
-         #   print(ncde_row)
+        
         #    pdb.set_trace()
         if not init:   
             hidden_state=hidden_state[:,-1,:]
@@ -325,6 +313,15 @@ class Actor_RNN(nn.Module):
         # 2. another branch for current obs
         curr_embed = self._get_shortcut_obs_embedding(obs)  # (1, B, dim)
         
+        #if init:
+        #    print(current_internal_state)
+        #    print(ncde_row)
+        #    print(curr_embed)
+            #pdb.set_trace()
+        #elif ncde_row[0,0,0]==1:
+        #    print(current_internal_state)
+        #print(ncde_row)
+        #print(curr_embed)
         # 3. joint embed
         joint_embeds = torch.cat((self.activation_ncde(hidden_state), curr_embed), dim=-1)  # (1, B, dim)
         
