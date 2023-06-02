@@ -1,7 +1,7 @@
 import gym
 from gym import spaces
 import numpy as np
-
+import pdb
 
 class POMDPWrapper(gym.Wrapper):
     def __init__(self, env, partially_obs_dims: list):
@@ -25,9 +25,11 @@ class POMDPWrapper(gym.Wrapper):
             self.act_continuous = False
 
     def get_obs(self, state):
+        
         return state[self.partially_obs_dims].copy()
 
     def reset(self):
+       
         state = np.array(self.env.reset())  # no kwargs
         return self.get_obs(state)
 

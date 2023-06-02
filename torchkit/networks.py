@@ -251,5 +251,5 @@ class NeuralCDE(torch.nn.Module):
                               )
 
         #pdb.set_trace()
-        pred_y = self.readout(z_T/self.radii)
-        return pred_y, z_T
+        #pred_y = self.readout(z_T/self.radii)
+        return z_T

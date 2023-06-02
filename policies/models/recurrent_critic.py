@@ -203,7 +203,8 @@ class Critic_RNN(nn.Module):
 
             ncde_row=torch.cat((timess,drop_tensor,input_a, input_s),2).permute(1,0,2)
                 
-            hidden_states, current_internal_state= self.rnn(ncde_row)
+            current_internal_state= self.rnn(ncde_row)
+            hidden_states=self.rnn.readout(current_internal_state/self.rnn.radii)          
             hidden_states=hidden_states.permute(1,0,2)
             hidden_states= self.activation_ncde(hidden_states)
         else:

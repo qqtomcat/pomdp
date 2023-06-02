@@ -173,8 +173,8 @@ class Actor_RNN(nn.Module):
            
             ncde_row=torch.cat((timess,drop_tensor,input_a, input_s),2).permute(1,0,2)
                     
-            hidden_states, current_internal_state= self.rnn(ncde_row)
-                      
+            current_internal_state= self.rnn(ncde_row)
+            hidden_states=self.rnn.readout(current_internal_state/self.radii)          
             hidden_states=hidden_states.permute(1,0,2)
            
             hidden_states= self.activation_ncde(hidden_states)
@@ -296,23 +296,24 @@ class Actor_RNN(nn.Module):
         
         if init:
             current_internal_state= self.rnn.realini(ncde_row)
-            current_internal_state = self.radii* current_internal_state * (torch.norm(current_internal_state) ** (-1))       
-            
-            hidden_state= self.rnn.readout(current_internal_state)
+            current_internal_state = self.radii* current_internal_state * (torch.norm(current_internal_state) ** (-1))                  
+            hidden_state= self.rnn.readout(current_internal_state/self.radii)
         else:
-            hidden_state , current_internal_state = self.rnn(ncde_row, prev_internal_state)
+            current_internal_state = self.rnn(ncde_row, prev_internal_state)
+            hidden_state= self.rnn.readout(current_internal_state[:,-1,:]/self.radii)
+            hidden_state=hidden_state.unsqueeze(1)
         #pdb.set_trace()
         #print(torch.norm(current_internal_state[0,-1,:]))
         
-        #    pdb.set_trace()
-        if not init:   
-            hidden_state=hidden_state[:,-1,:]
+        #pdb.set_trace()
+        #if not init:   
+        #    hidden_state=hidden_state[:,-1,:]
             
-            hidden_state=hidden_state.unsqueeze(0)
+        #    hidden_state=hidden_state.unsqueeze(0)
        
         # 2. another branch for current obs
         curr_embed = self._get_shortcut_obs_embedding(obs)  # (1, B, dim)
-        
+        #pdb.set_trace()
         #if init:
         #    print(current_internal_state)
         #    print(ncde_row)
