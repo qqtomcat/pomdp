@@ -49,6 +49,7 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
         # pixel obs
         image_encoder_fn=lambda: None,
         activation = "tanh",
+        ini_regularization= False,
         **kwargs
     ):
         super().__init__()
@@ -57,7 +58,7 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
         self.action_dim = action_dim
         self.gamma = gamma
         self.tau = tau
-        
+        self.ini_regularization=ini_regularization
         self.algo = RL_ALGORITHMS[algo_name](action_dim=action_dim)
     
 
@@ -90,7 +91,9 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
             image_encoder=image_encoder_fn(),  # separate weight
         )
         self.critic_optimizer = Adam(self.critic.parameters(), lr)
+
         # target networks
+        self.critic_ini_optimizer= Adam(self.critic.rnn.realini.parameters(), lr/2)
         self.critic_target = deepcopy(self.critic)
         
         # Actor
@@ -110,6 +113,7 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
             image_encoder=image_encoder_fn(),  # separate weight
         )
         self.actor_optimizer = Adam(self.actor.parameters(), lr)
+        self.actor_ini_optimizer= Adam(self.actor.rnn.realini.parameters(), lr/2)
         # target networks
         self.actor_target = deepcopy(self.actor)
 
@@ -160,6 +164,30 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
 
         return current_action_tuple, current_internal_state
 	
+    def compute_diffs(self, actions, rewards, observs, dones, masks, net):
+        
+        if net == "actor":
+            arch=self.actor
+        else:
+            arch=self.critic
+            
+        timess= utl.timess_ini(actions.size(0),actions.size(1))       
+        input_a,input_r,input_s=arch.get_embeddings(actions,rewards, observs)                
+        drop_tensor= utl.drop_tensor_compute(input_s)        
+        ncde_row=torch.cat((timess,drop_tensor,input_a, input_s),2).permute(1,0,2)
+            
+        current_internal_state= arch.rnn(ncde_row)
+        currest=arch.rnn.realini(ncde_row)
+        currest_norms= torch.norm(currest,dim=2)**(-1)
+        currest_normalized= arch.rnn.radii* currest_norms.unsqueeze(2).expand(currest.size(0), 
+                                                                               currest.size(1),currest.size(2)) * currest
+        dif=current_internal_state-currest_normalized
+        diff= dif.abs()
+        
+        difff=torch.sum(diff)/(currest.size(0)*currest.size(1)*currest.size(2))
+        
+        return difff
+    
     def forward(self, actions, rewards, observs, dones, masks, factor):
         """
         For actions a, rewards r, observs o, dones d: (T+1, B, dim)
@@ -217,11 +245,16 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
         #print(self.critic_optimizer.param_groups[0]["lr"])
         
         self.critic_optimizer.zero_grad()
-        (qf1_loss + qf2_loss).backward()
-        
-        
-        
+        (qf1_loss + qf2_loss).backward()                        
         self.critic_optimizer.step()
+        
+        if self.ini_regularization:
+            net = "critic"
+            diff_crt = self.compute_diffs(actions, rewards, observs, dones, masks, net)
+            self.critic_ini_optimizer.zero_grad()
+            diff_crt.backward()
+            self.critic_ini_optimizer.step()
+        
         
         ### 2. Actor loss
         policy_loss, log_probs = self.algo.actor_loss(
@@ -237,13 +270,20 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
         )
         # masked policy_loss
         
+        
         policy_loss = (policy_loss * masks).sum() / num_valid
         #print(policy_loss)
         self.actor_optimizer.zero_grad()
-        policy_loss.backward()
-        
-        
-        self.actor_optimizer.step()
+        policy_loss.backward()              
+        self.actor_optimizer.step()   
+     
+        if self.ini_regularization:
+            net = "actor"
+            diff_act = self.compute_diffs(actions, rewards, observs, dones, masks, net)
+            self.actor_ini_optimizer.zero_grad()
+            diff_act.backward()
+            self.actor_ini_optimizer.step()
+                   
      
         outputs = {
             "qf1_loss": qf1_loss.item(),

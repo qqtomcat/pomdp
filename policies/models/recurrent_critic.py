@@ -29,7 +29,7 @@ class Critic_RNN(nn.Module):
         self.obs_dim = obs_dim
         self.action_dim = action_dim
         self.algo = algo
-       
+        self.radii= radii
         ### Build Model
         ## 1. embed action, state, reward (Feed-forward layers first)
 
@@ -204,6 +204,18 @@ class Critic_RNN(nn.Module):
             ncde_row=torch.cat((timess,drop_tensor,input_a, input_s),2).permute(1,0,2)
                 
             current_internal_state= self.rnn(ncde_row)
+                       
+            #estimation of deviation ini and ncde
+            currest=self.rnn.realini(ncde_row)
+            currest_norms= torch.norm(currest,dim=2)**(-1)
+            currest_normalized= self.radii* currest_norms.unsqueeze(2).expand(currest.size(0), 
+                                                                                   currest.size(1),currest.size(2)) * currest
+            #dif=current_internal_state-currest_normalized
+            #diff= dif.abs()
+            #pdb.set_trace()
+            #difff=torch.sum(diff)/(currest.size(0)*currest.size(1)*currest.size(2))
+            #print("critic losses   ", difff)
+            
             hidden_states=self.rnn.readout(current_internal_state/self.rnn.radii)          
             hidden_states=hidden_states.permute(1,0,2)
             hidden_states= self.activation_ncde(hidden_states)

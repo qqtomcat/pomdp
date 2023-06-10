@@ -174,6 +174,18 @@ class Actor_RNN(nn.Module):
             ncde_row=torch.cat((timess,drop_tensor,input_a, input_s),2).permute(1,0,2)
                     
             current_internal_state= self.rnn(ncde_row)
+            
+            #estimation of deviation ini and ncde
+            currest=self.rnn.realini(ncde_row)
+            currest_norms= torch.norm(currest,dim=2)**(-1)
+            currest_normalized= self.rnn.radii* currest_norms.unsqueeze(2).expand(currest.size(0), 
+                                                                                   currest.size(1),currest.size(2)) * currest
+            #dif=current_internal_state-currest_normalized
+            ##diff= dif.abs()
+            #pdb.set_trace()
+            #difff=torch.sum(diff)/(currest.size(0)*currest.size(1)*currest.size(2))
+            #print("actor losses   ", difff)
+            
             hidden_states=self.rnn.readout(current_internal_state/self.radii)          
             hidden_states=hidden_states.permute(1,0,2)
            

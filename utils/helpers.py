@@ -244,6 +244,7 @@ def sample_gaussian(mu, logvar, num=None):
         mu = mu.repeat(num, 1)
         return eps.mul(std).add_(mu)
 
+
 def analysis(curr):
     ndif1=curr[:,:-1,:]
     ndif2=curr[:,1:,:]
